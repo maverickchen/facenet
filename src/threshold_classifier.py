@@ -106,22 +106,39 @@ def main(args):
             elif (args.mode=='CLASSIFY'):
                 # Classify images
                 print('Testing classifier')
+                args.authUser = args.authUser.replace('_',' ')
                 with open(classifier_filename_exp, 'rb') as infile:
                     (model, class_names) = pickle.load(infile)
-
+                try:
+                    class_ind = class_names.index(args.authUser)
+                except:
+                    print("User",args.authUser," couldn't be found")
+                    return
                 print('Loaded classifier model from file "%s"' % classifier_filename_exp)
-
+                #assert(len(dataset) < 2) # only one class
                 predictions = model.predict_proba(emb_array)
-                print(predictions)
                 best_class_indices = np.argmax(predictions, axis=1)
                 best_class_probabilities = predictions[np.arange(len(best_class_indices)), best_class_indices]
-                
-                for i in range(len(best_class_indices)):
-                    print('%4d  %s: %.3f' % (i, class_names[best_class_indices[i]], best_class_probabilities[i]))
-                print('labels ',labels)
-                print('class_names ',class_names)
-                print('best class indices ', best_class_indices)
-                accuracy = np.mean(np.equal(best_class_indices, labels))
+                nFalseNeg = 0.0
+                nFalsePos = 0.0
+                for i in range(len(predictions)):
+                    print('Test %d : %.3f' % (i, predictions[i][class_ind]))
+                    if (predictions[i][class_ind] <= args.threshold):
+                        print('--> Image %d not authorized' % (i))
+                        if class_names[labels[i]]==class_names[class_ind]:
+                            nFalseNeg+=1
+                    elif class_names[labels[i]]!=class_names[class_ind]:
+                        nFalsePos+=1
+                # for i in range(len(best_class_indices)):
+                #     print('%4d  %s: %.3f' % (i, class_names[best_class_indices[i]], best_class_probabilities[i]))
+                #     if (best_class_probabilities[i] <= args.threshold or class_names[best_class_indices[i]]!=args.authUser):
+                #print('labels ',labels)
+                #print('class_names ',class_names)
+                #print('best class indices ', best_class_indices)
+                accuracy = (len(predictions) - nFalseNeg - nFalsePos)/len(predictions)
+                print('Using threshold =',args.threshold)
+                print('Number of false positives:',nFalsePos)
+                print('Number of false negatives:',nFalseNeg)
                 print('Accuracy: %.3f' % accuracy)
                 
             
@@ -166,7 +183,10 @@ def parse_arguments(argv):
         help='Only include classes with at least this number of images in the dataset', default=20)
     parser.add_argument('--nrof_train_images_per_class', type=int,
         help='Use this number of images from each class for training and the rest for testing', default=10)
-    
+    parser.add_argument('--threshold',type=float,
+        help='Threshold for the classifier function',default=0.8)
+    parser.add_argument('--authUser',type=str,
+        help='Name of the user to authenticate',default='Maverick_Chen')
     return parser.parse_args(argv)
 
 if __name__ == '__main__':
